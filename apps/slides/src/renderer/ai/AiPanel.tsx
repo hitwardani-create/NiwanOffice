@@ -38,7 +38,6 @@ import {
 } from './slide-qc'
 import { useI18n, t as tGlobal, aiLangDirective, type TFunc } from '../i18n/locale'
 import { Markdown, ModelSelector } from '@genoffice/ui'
-import '@genoffice/ui/model-selector.css'
 import { GensparkMark } from '../components/icons'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'

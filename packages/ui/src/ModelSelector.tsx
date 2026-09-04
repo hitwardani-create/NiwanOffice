@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiSettings } from '@genoffice/ai-provider'
+import './model-selector.css'
 
 export interface ModelSelectorProps {
   settings?: AiSettings | null
