@@ -26,7 +26,7 @@ export function gensparkAttributionHeaders(baseUrl?: string): Record<string, str
 export const AI_PROVIDERS: AiProviderMeta[] = [
   {
     id: 'genspark',
-    label: 'Genspark',
+    label: 'Niwan AI',
     // must stay within the proxy's served set (GET /api/llm_proxy/v1/models);
     // bare gpt-5.6 and the gemini family dropped off it (verified 2026-08-31)
     models: [
@@ -37,7 +37,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       'gpt-5.6-luna',
     ],
     defaultModel: 'claude-opus-4-7',
-    keyPlaceholder: 'Not required - sign in to Genspark',
+    keyPlaceholder: 'Not required - cloud sign-in',
   },
   {
     id: 'anthropic',
@@ -162,6 +162,23 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     keyPlaceholder: 'sk-or-...',
   },
   {
+    id: 'ollama',
+    label: 'Ollama (Local)',
+    models: [
+      'llama3.2',
+      'llama3.1',
+      'qwen2.5-coder',
+      'qwen2.5',
+      'deepseek-r1',
+      'mistral',
+      'gemma2',
+      'phi4',
+    ],
+    defaultModel: 'llama3.2',
+    keyPlaceholder: 'Not required (local)',
+    needsBaseUrl: true,
+  },
+  {
     id: 'custom',
     label: 'Custom',
     models: [],
@@ -185,7 +202,12 @@ export function defaultAiSettings(
     providers[meta.id] = {
       apiKey: defaultApiKeys?.[meta.id] ?? '',
       model: meta.defaultModel,
-      baseUrl: meta.needsBaseUrl ? '' : undefined,
+      baseUrl:
+        meta.id === 'ollama'
+          ? 'http://localhost:11434/v1'
+          : meta.needsBaseUrl
+            ? ''
+            : undefined,
     }
   }
   return { provider: 'genspark', providers, gskToolsEnabled: true }
@@ -209,8 +231,9 @@ export function activeProvider(settings: AiSettings): AiProviderId {
   if (provider === 'genspark') return 'genspark'
   const meta = AI_PROVIDERS.find((m) => m.id === provider)
   const config = settings.providers?.[provider]
-  if (!meta || !config?.apiKey || !config.model) return 'genspark'
-  if (meta.needsBaseUrl && !config.baseUrl) return 'genspark'
+  if (!meta || !config?.model) return 'genspark'
+  if (provider !== 'ollama' && provider !== 'custom' && !config.apiKey) return 'genspark'
+  if (meta.needsBaseUrl && !config.baseUrl && provider !== 'ollama') return 'genspark'
   return provider
 }
 

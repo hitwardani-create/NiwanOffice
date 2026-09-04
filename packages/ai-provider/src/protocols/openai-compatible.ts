@@ -154,7 +154,7 @@ async function openAiCompatibleTurn(
     signal: wd.signal,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
+      ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
       ...gensparkAttributionHeaders(baseUrl),
     },
     body: JSON.stringify({
@@ -304,7 +304,7 @@ export async function chatOpenAiCompatible(
     signal: wd.signal,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
+      ...(config.apiKey?.trim() ? { Authorization: `Bearer ${config.apiKey.trim()}` } : {}),
       ...gensparkAttributionHeaders(baseUrl),
     },
     body: JSON.stringify({

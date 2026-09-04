@@ -257,6 +257,8 @@ const homeApi: HomeApi = {
           apiKey: '',
           model: meta.defaultModel,
         }).baseUrl
+      } else if (meta.id === 'ollama') {
+        defaultBaseUrl = 'http://localhost:11434/v1'
       }
       return { ...meta, defaultBaseUrl }
     })

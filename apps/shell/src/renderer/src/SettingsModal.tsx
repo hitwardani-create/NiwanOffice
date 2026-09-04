@@ -737,6 +737,7 @@ export function SettingsModal({
                     </button>
                   }
                 />
+                <Field label="License" value="Apache License 2.0 (Open Source)" />
               </>
             )}
           </div>

@@ -189,6 +189,17 @@ export const AI_PROVIDER_ADAPTERS: Record<AiProviderId, ProviderAdapter> = {
     capabilities: { auth: 'api-key', vision: true },
     resolveEndpoint: fixedEndpoint('openai-compatible', 'https://openrouter.ai/api/v1'),
   },
+  ollama: {
+    meta: metaOf('ollama'),
+    capabilities: { auth: 'api-key', vision: true },
+    resolveEndpoint(config) {
+      return {
+        protocol: 'openai-compatible',
+        baseUrl: config.baseUrl || 'http://localhost:11434/v1',
+        ...(modelHasFixedSampling(config.model) ? { omitTemperature: true } : {}),
+      }
+    },
+  },
   custom: {
     meta: metaOf('custom'),
     capabilities: { auth: 'api-key', vision: true },
