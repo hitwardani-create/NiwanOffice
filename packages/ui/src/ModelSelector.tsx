@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiSettings } from '@genoffice/ai-provider'
 
 export interface ModelSelectorProps {
@@ -18,7 +18,11 @@ const DEFAULT_PRESETS = [
   'phi4',
 ]
 
-export function ModelSelector({ settings, onModelChange, className }: ModelSelectorProps): React.JSX.Element {
+export function ModelSelector({
+  settings,
+  onModelChange,
+  className,
+}: ModelSelectorProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [localModels, setLocalModels] = useState<string[]>([])
@@ -33,56 +37,61 @@ export function ModelSelector({ settings, onModelChange, className }: ModelSelec
   const baseUrl = config?.baseUrl || 'http://localhost:11434/v1'
 
   // Probes Ollama / local runtime to list pre-installed models
-  const detectLocalModels = async (autoSelect = false) => {
-    setDetecting(true)
-    setStatusMessage('Checking local models...')
-    try {
-      let models: string[] = []
-      const win = window as any
-      const listFn =
-        win.desktop?.listLocalModels ||
-        win.desktopApi?.listLocalModels ||
-        win.slidesApi?.listLocalModels ||
-        win.aiOffice?.listLocalModels
+  const detectLocalModels = useCallback(
+    async (autoSelect = false) => {
+      setDetecting(true)
+      setStatusMessage('Checking local models...')
+      try {
+        let models: string[] = []
+        const win = window as any
+        const listFn =
+          win.desktop?.listLocalModels ||
+          win.desktopApi?.listLocalModels ||
+          win.slidesApi?.listLocalModels ||
+          win.aiOffice?.listLocalModels
 
-      if (typeof listFn === 'function') {
-        models = await listFn(baseUrl)
-      } else {
-        try {
-          const res = await fetch(`${baseUrl.replace(/\/v1$/, '')}/api/tags`).catch(() => null)
-          if (res && res.ok) {
-            const data = (await res.json()) as { models?: Array<{ name?: string; model?: string }> }
-            if (Array.isArray(data.models)) {
-              models = data.models.map((m: any) => m.name || m.model || '').filter(Boolean)
+        if (typeof listFn === 'function') {
+          models = await listFn(baseUrl)
+        } else {
+          try {
+            const res = await fetch(`${baseUrl.replace(/\/v1$/, '')}/api/tags`).catch(() => null)
+            if (res && res.ok) {
+              const data = (await res.json()) as {
+                models?: Array<{ name?: string; model?: string }>
+              }
+              if (Array.isArray(data.models)) {
+                models = data.models.map((m: any) => m.name || m.model || '').filter(Boolean)
+              }
             }
+          } catch {
+            /* fallback */
           }
-        } catch {
-          /* fallback */
         }
-      }
 
-      if (models.length > 0) {
-        setLocalModels(models)
-        setStatusMessage(`${models.length} local model(s) installed`)
-        if (autoSelect || !currentModel || !models.includes(currentModel)) {
-          if (models[0]) onModelChange?.(models[0])
+        if (models.length > 0) {
+          setLocalModels(models)
+          setStatusMessage(`${models.length} local model(s) installed`)
+          if (autoSelect || !currentModel || !models.includes(currentModel)) {
+            if (models[0]) onModelChange?.(models[0])
+          }
+        } else {
+          setStatusMessage('No models found in Ollama yet')
         }
-      } else {
-        setStatusMessage('No models found in Ollama yet')
+      } catch {
+        setStatusMessage('Ollama server not reachable')
+      } finally {
+        setDetecting(false)
       }
-    } catch {
-      setStatusMessage('Ollama server not reachable')
-    } finally {
-      setDetecting(false)
-    }
-  }
+    },
+    [baseUrl, currentModel, onModelChange],
+  )
 
   // Initial detection when provider is ollama or custom
   useEffect(() => {
     if (provider === 'ollama' || provider === 'custom') {
       void detectLocalModels(false)
     }
-  }, [provider, baseUrl])
+  }, [provider, detectLocalModels])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -130,8 +139,21 @@ export function ModelSelector({ settings, onModelChange, className }: ModelSelec
         <span className="ai-model-label" title={currentModel}>
           {currentModel}
         </span>
-        <svg className="ai-model-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-          <path d="M2.5 3.75L5 6.25L7.5 3.75" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        <svg
+          className="ai-model-caret"
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M2.5 3.75L5 6.25L7.5 3.75"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
 
