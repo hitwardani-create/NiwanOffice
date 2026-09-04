@@ -1056,10 +1056,7 @@ export function AiPanel({
           {t('aiPanelTitle')}
         </span>
         <div className="ai-panel-header-actions">
-          <ModelSelector
-            settings={panelSettings || settings}
-            onModelChange={handleModelChange}
-          />
+          <ModelSelector settings={panelSettings || settings} onModelChange={handleModelChange} />
           {chat.length > 0 && (
             <button
               className="ai-header-btn"

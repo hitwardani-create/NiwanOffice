@@ -478,7 +478,9 @@ const config = {
     }
   },
   dmg: {
-    sign: Boolean(process.env.APPLE_ID || process.env.CSC_LINK || process.env.APPLE_KEYCHAIN_PROFILE),
+    sign: Boolean(
+      process.env.APPLE_ID || process.env.CSC_LINK || process.env.APPLE_KEYCHAIN_PROFILE,
+    ),
   },
   afterAllArtifactBuild: 'build/notarize-dmg.js',
 }

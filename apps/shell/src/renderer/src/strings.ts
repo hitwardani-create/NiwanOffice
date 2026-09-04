@@ -191,7 +191,8 @@ export const strings = {
     onbSubtitle1: '第一个开源的 AI 原生 Office 套件',
     onbBody1: '创建文档、制作表格、生成演示、审阅 PDF。AI 深度融入每个环节。',
     onbTitle2: '这只是一个开始',
-    onbBody2: 'NiwanOffice 目前处于 alpha 阶段。欢迎加入 GenTeam 群聊，分享反馈，一起塑造它的未来。',
+    onbBody2:
+      'NiwanOffice 目前处于 alpha 阶段。欢迎加入 GenTeam 群聊，分享反馈，一起塑造它的未来。',
     onbCredits: '活跃贡献者可获得 **1,000+ Genspark 积分**',
     onbJoinGenTeam: '加入 GenTeam',
     onbSkip: '跳过',
@@ -418,8 +419,7 @@ export const strings = {
     cloudSortRecent: '新しい順',
     cloudSortOldest: '古い順',
     cloudRefresh: '更新',
-    cloudLoginHint:
-      'アカウントにサインインすると、Web で作成したプロジェクトを表示できます。',
+    cloudLoginHint: 'アカウントにサインインすると、Web で作成したプロジェクトを表示できます。',
     cloudEmpty: 'Web のプロジェクトはまだありません。',
     cloudError: '読み込みに失敗しました。後でもう一度お試しください。',
     cloudRetry: '再試行',
@@ -1636,8 +1636,7 @@ export const strings = {
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'เว้นว่างเพื่อใช้ปลายทางอย่างเป็นทางการ',
     setAiGensparkHint: 'ใช้การลงชื่อเข้าใช้ ไม่ต้องใช้คีย์ API',
-    setAiByokNote:
-      'แชทใช้คีย์ของคุณเอง เครื่องมือคลาวด์ (ค้นเว็บ สร้างภาพ) ยังต้องลงชื่อเข้าใช้',
+    setAiByokNote: 'แชทใช้คีย์ของคุณเอง เครื่องมือคลาวด์ (ค้นเว็บ สร้างภาพ) ยังต้องลงชื่อเข้าใช้',
     setAiSave: 'บันทึก',
     setAiSaved: 'บันทึกแล้ว',
     setAiTest: 'ทดสอบการเชื่อมต่อ',
@@ -2952,8 +2951,7 @@ export const strings = {
     cloudSortRecent: 'Recent',
     cloudSortOldest: 'Oudste',
     cloudRefresh: 'Vernieuwen',
-    cloudLoginHint:
-      'Log in op je Account om projecten te zien die je op het web hebt gemaakt.',
+    cloudLoginHint: 'Log in op je Account om projecten te zien die je op het web hebt gemaakt.',
     cloudEmpty: 'Nog geen webprojecten.',
     cloudError: 'Laden mislukt. Probeer het later opnieuw.',
     cloudRetry: 'Opnieuw proberen',
@@ -3929,7 +3927,8 @@ export const strings = {
     onbSubtitle1: '第一個開源的 AI 原生 Office 套件',
     onbBody1: '建立文件、製作試算表、產生簡報、審閱 PDF。AI 深度融入每個環節。',
     onbTitle2: '這只是一個開始',
-    onbBody2: 'NiwanOffice 目前仍在 alpha 階段。歡迎加入 GenTeam 群聊，分享回饋，一起打造它的未來。',
+    onbBody2:
+      'NiwanOffice 目前仍在 alpha 階段。歡迎加入 GenTeam 群聊，分享回饋，一起打造它的未來。',
     onbCredits: '活躍貢獻者可獲得 **1,000+ Genspark 點數**',
     onbJoinGenTeam: '加入 GenTeam',
     onbSkip: '略過',

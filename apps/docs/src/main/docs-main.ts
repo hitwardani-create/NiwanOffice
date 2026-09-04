@@ -2659,47 +2659,52 @@ export function registerAiIpc(): void {
     writeJson(SETTINGS_PATH(), settings)
   })
 
-  ipcMain.handle('ai:list-local-models', async (_event, customBaseUrl?: string): Promise<string[]> => {
-    const urls = [
-      customBaseUrl ? customBaseUrl.replace(/\/$/, '') : 'http://localhost:11434/v1',
-      'http://localhost:11434',
-    ]
-    for (const base of urls) {
-      try {
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 2000)
-        const ollamaRes = await fetch(`${base.replace(/\/v1$/, '')}/api/tags`, {
-          signal: controller.signal,
-        }).catch(() => null)
-        clearTimeout(timer)
-        if (ollamaRes && ollamaRes.ok) {
-          const data = (await ollamaRes.json()) as { models?: Array<{ name?: string; model?: string }> }
-          if (Array.isArray(data.models) && data.models.length > 0) {
-            return data.models.map((m) => m.name || m.model || '').filter(Boolean)
+  ipcMain.handle(
+    'ai:list-local-models',
+    async (_event, customBaseUrl?: string): Promise<string[]> => {
+      const urls = [
+        customBaseUrl ? customBaseUrl.replace(/\/$/, '') : 'http://localhost:11434/v1',
+        'http://localhost:11434',
+      ]
+      for (const base of urls) {
+        try {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 2000)
+          const ollamaRes = await fetch(`${base.replace(/\/v1$/, '')}/api/tags`, {
+            signal: controller.signal,
+          }).catch(() => null)
+          clearTimeout(timer)
+          if (ollamaRes && ollamaRes.ok) {
+            const data = (await ollamaRes.json()) as {
+              models?: Array<{ name?: string; model?: string }>
+            }
+            if (Array.isArray(data.models) && data.models.length > 0) {
+              return data.models.map((m) => m.name || m.model || '').filter(Boolean)
+            }
           }
+        } catch {
+          /* try next */
         }
-      } catch {
-        /* try next */
-      }
-      try {
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 2000)
-        const modelsRes = await fetch(`${base}/models`, {
-          signal: controller.signal,
-        }).catch(() => null)
-        clearTimeout(timer)
-        if (modelsRes && modelsRes.ok) {
-          const data = (await modelsRes.json()) as { data?: Array<{ id?: string }> }
-          if (Array.isArray(data.data) && data.data.length > 0) {
-            return data.data.map((m) => m.id || '').filter(Boolean)
+        try {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 2000)
+          const modelsRes = await fetch(`${base}/models`, {
+            signal: controller.signal,
+          }).catch(() => null)
+          clearTimeout(timer)
+          if (modelsRes && modelsRes.ok) {
+            const data = (await modelsRes.json()) as { data?: Array<{ id?: string }> }
+            if (Array.isArray(data.data) && data.data.length > 0) {
+              return data.data.map((m) => m.id || '').filter(Boolean)
+            }
           }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
       }
-    }
-    return []
-  })
+      return []
+    },
+  )
 
   ipcMain.handle('ai:stream', async (event, request: AiStreamRequest) => {
     const { requestId, settings, system, messages } = request

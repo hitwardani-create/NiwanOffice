@@ -203,11 +203,7 @@ export function defaultAiSettings(
       apiKey: defaultApiKeys?.[meta.id] ?? '',
       model: meta.defaultModel,
       baseUrl:
-        meta.id === 'ollama'
-          ? 'http://localhost:11434/v1'
-          : meta.needsBaseUrl
-            ? ''
-            : undefined,
+        meta.id === 'ollama' ? 'http://localhost:11434/v1' : meta.needsBaseUrl ? '' : undefined,
     }
   }
   return { provider: 'genspark', providers, gskToolsEnabled: true }
