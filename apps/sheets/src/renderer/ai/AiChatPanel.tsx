@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { AiComposer, AiTypingIndicator, ModelSelector } from '@genoffice/ui'
 import '@genoffice/ui/model-selector.css'
-import type { AiSettings } from '@genoffice/ai-provider'
+import type { AiProviderId, AiSettings } from '@genoffice/ai-provider'
 import { GensparkMark } from '../ribbon-icons'
 import type { ChangePlan } from '../../domain/workbook.types'
 import { ATTACHMENT_IMAGE_EXTS, type AttachmentMeta } from '../../shared/desktop-api'
@@ -294,11 +294,12 @@ export function AiChatPanel({
     void (window as any).desktopApi?.getAiSettings?.().then(setPanelSettings)
   }, [])
 
-  const handleModelChange = (newModel: string) => {
+  const handleModelChange = (newModel: string, newProvider?: AiProviderId) => {
     if (!panelSettings) return
-    const provider = panelSettings.provider || 'ollama'
+    const provider = newProvider || panelSettings.provider || 'ollama'
     const updated: AiSettings = {
       ...panelSettings,
+      provider,
       providers: {
         ...panelSettings.providers,
         [provider]: {
@@ -643,12 +644,26 @@ export function AiChatPanel({
                     )}
                   </div>
                 )}
-                {entry.loginRequired && (
+                {entry.isError && (
                   <button
-                    className="ai-login-btn"
-                    onClick={() => void window.desktopApi.aiGskLogin()}
+                    type="button"
+                    className="ai-retry-btn"
+                    style={{
+                      marginTop: '6px',
+                      padding: '3px 10px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-strong, #555)',
+                      background: 'var(--surface, #1e1e1e)',
+                      color: 'var(--text, #e4e4e4)',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      const lastUser = [...chat].reverse().find((m) => m.role === 'user')
+                      if (lastUser?.text) onSend(lastUser.text, lastUser.attachments ?? [])
+                    }}
                   >
-                    {t('aiGskLoginBtn')}
+                    Retry
                   </button>
                 )}
               </>

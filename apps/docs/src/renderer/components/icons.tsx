@@ -1674,3 +1674,5 @@ export function GensparkMark({ size = 30 }: { size?: number }) {
     </svg>
   )
 }
+
+export const NiwanMark = GensparkMark

@@ -7,7 +7,12 @@ import {
   type ToolDisplay,
 } from '@genoffice/agent-core'
 import type { RenderSlide } from '@genoffice/pptx-render'
-import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
+import type {
+  AiProviderId,
+  AiSettings,
+  AttachmentAddResult,
+  AttachmentMeta,
+} from '../../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
 import {
   createSlidesSkill,
@@ -521,12 +526,13 @@ export function AiPanel({
   const settingsRef = useRef(settings)
   settingsRef.current = panelSettings || settings
 
-  const handleModelChange = (newModel: string) => {
+  const handleModelChange = (newModel: string, newProvider?: AiProviderId) => {
     const base = panelSettings || settings
     if (!base) return
-    const provider = base.provider || 'ollama'
+    const provider = newProvider || base.provider || 'ollama'
     const updated: AiSettings = {
       ...base,
+      provider,
       providers: {
         ...base.providers,
         [provider]: {
@@ -1458,22 +1464,6 @@ export function AiPanel({
             }
             return next
           })
-          // Signed-out failures get an inline sign-in button; detected via
-          // gsk status rather than matching the localized error text
-          void window.slidesApi
-            .aiGskStatus()
-            .then((status) => {
-              if (status.loggedIn) return
-              setChat((prev) => {
-                const next = [...prev]
-                const last = next.at(-1)
-                if (last?.role === 'assistant' && last.error) {
-                  next[next.length - 1] = { ...last, loginRequired: true }
-                }
-                return next
-              })
-            })
-            .catch(() => {})
           void finishHistoryBatch().finally(() => {
             setBusy(false)
             const resolveQueueRun = queueRunResolverRef.current
@@ -2129,12 +2119,29 @@ export function AiPanel({
               )}
               {entry.tools && entry.tools.length > 0 && <ToolChipList tools={entry.tools} />}
               {entry.error && (
-                <div className="ai-msg-error">{t('aiMsgError', { error: entry.error })}</div>
-              )}
-              {entry.loginRequired && (
-                <button className="ai-login-btn" onClick={() => void window.slidesApi.aiGskLogin()}>
-                  {t('aiGskLoginBtn')}
-                </button>
+                <div className="ai-msg-error">
+                  <div>{t('aiMsgError', { error: entry.error })}</div>
+                  <button
+                    type="button"
+                    className="ai-retry-btn"
+                    style={{
+                      marginTop: '6px',
+                      padding: '3px 10px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-strong, #555)',
+                      background: 'var(--surface, #1e1e1e)',
+                      color: 'var(--text, #e4e4e4)',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      const lastUser = [...chat].reverse().find((m) => m.role === 'user')
+                      if (lastUser?.text) runWith(lastUser.text)
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
               )}
               {entry.deckProgress && <DeckProgressCard progress={entry.deckProgress} />}
               {showToolbar && (

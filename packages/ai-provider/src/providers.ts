@@ -200,13 +200,13 @@ export function defaultAiSettings(
   const providers = {} as AiSettings['providers']
   for (const meta of AI_PROVIDERS) {
     providers[meta.id] = {
-      apiKey: defaultApiKeys?.[meta.id] ?? '',
+      apiKey: defaultApiKeys?.[meta.id] ?? (meta.id === 'ollama' ? 'ollama' : ''),
       model: meta.defaultModel,
       baseUrl:
         meta.id === 'ollama' ? 'http://localhost:11434/v1' : meta.needsBaseUrl ? '' : undefined,
     }
   }
-  return { provider: 'genspark', providers, gskToolsEnabled: true }
+  return { provider: 'ollama', providers, gskToolsEnabled: false }
 }
 
 /** false only on an explicit opt-out; absent (pre-toggle settings files) means on */
@@ -215,22 +215,22 @@ export function cloudToolsEnabled(settings: Pick<AiSettings, 'gskToolsEnabled'>)
 }
 
 /**
- * The stored provider selection is honored only when its config is usable
- * (api-key providers need a key and a model id; providers flagged
- * needsBaseUrl also need a base URL). Anything else — including unknown
- * ids from a hand-edited
- * settings file — falls back to genspark, so a half-filled setup degrades
- * to the signed-in default instead of silently disabling AI.
+ * NiwanOffice exclusively uses Ollama for local AI inference.
+ * Any legacy or cloud provider selection falls back safely to 'ollama'.
  */
 export function activeProvider(settings: AiSettings): AiProviderId {
   const provider = settings.provider
-  if (provider === 'genspark') return 'genspark'
-  const meta = AI_PROVIDERS.find((m) => m.id === provider)
-  const config = settings.providers?.[provider]
-  if (!meta || !config?.model) return 'genspark'
-  if (provider !== 'ollama' && provider !== 'custom' && !config.apiKey) return 'genspark'
-  if (meta.needsBaseUrl && !config.baseUrl && provider !== 'ollama') return 'genspark'
-  return provider
+  if (provider === 'ollama') return 'ollama'
+  if (provider === 'custom') {
+    const customConfig = settings.providers?.custom
+    if (
+      customConfig?.baseUrl &&
+      (customConfig.baseUrl.includes('localhost') || customConfig.baseUrl.includes('127.0.0.1'))
+    ) {
+      return 'custom'
+    }
+  }
+  return 'ollama'
 }
 
 /**
@@ -303,6 +303,14 @@ function migrateRetiredModels(providers: AiSettings['providers']): AiSettings['p
     const replacement = config?.model ? replacements[config.model] : undefined
     if (replacement) migrated[id as AiProviderId] = { ...config, model: replacement }
   }
+  const gensparkMeta = AI_PROVIDERS.find((p) => p.id === 'genspark')
+  if (
+    gensparkMeta &&
+    migrated.genspark?.model &&
+    !gensparkMeta.models.includes(migrated.genspark.model)
+  ) {
+    migrated.genspark = { ...migrated.genspark, model: gensparkMeta.defaultModel }
+  }
   return migrated
 }
 
@@ -326,10 +334,26 @@ export function resolveAiSettings(
     }
     return defaults
   }
+  const mergedProviders = trimConfigs(
+    migrateRetiredModels({ ...defaults.providers, ...stored.providers }),
+  )
+  if (!mergedProviders.ollama) {
+    mergedProviders.ollama = {
+      apiKey: 'ollama',
+      model: 'llama3.2',
+      baseUrl: 'http://localhost:11434/v1',
+    }
+  } else {
+    mergedProviders.ollama.apiKey = mergedProviders.ollama.apiKey || 'ollama'
+    mergedProviders.ollama.baseUrl = mergedProviders.ollama.baseUrl || 'http://localhost:11434/v1'
+    mergedProviders.ollama.model = mergedProviders.ollama.model || 'llama3.2'
+  }
+  const rawProvider = stored.provider ?? defaults.provider
+  const provider = rawProvider === 'genspark' ? 'ollama' : rawProvider
   return {
-    provider: stored.provider ?? defaults.provider,
-    providers: trimConfigs(migrateRetiredModels({ ...defaults.providers, ...stored.providers })),
-    gskToolsEnabled: stored.gskToolsEnabled ?? defaults.gskToolsEnabled ?? true,
+    provider,
+    providers: mergedProviders,
+    gskToolsEnabled: stored.gskToolsEnabled ?? defaults.gskToolsEnabled ?? false,
     // clamped on read: a hand-edited settings file with an absurd cap must not be
     // forwarded to the endpoint verbatim
     ...(stored.maxOutputTokens !== undefined || defaults.maxOutputTokens !== undefined

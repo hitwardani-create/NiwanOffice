@@ -223,7 +223,7 @@ const tMain = createI18n({
     errImageNoText: 'Image attachments have no text; the image is sent along with the user message',
     errNotImage: 'not a supported image type',
     errGskNotLoggedIn:
-      'Not signed in to Genspark: click “Sign in to Genspark” below, sign in, then retry',
+      'Not signed in to Niwan AI: click “Sign in to AI” below, sign in, then retry',
     errNoApiKey: 'No API key configured for {provider}',
     errAiBusy: 'The AI service is busy right now — please try again in a moment',
     errNoModel: 'No model name configured',

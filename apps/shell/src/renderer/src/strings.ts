@@ -317,7 +317,7 @@ export const strings = {
     loginOpenShort: 'Open sign-in page manually',
     loginCopyUrl: 'Copy sign-in link',
     loginCopied: 'Copied',
-    loginNetworkError: 'Cannot reach Genspark — check your network or proxy settings',
+    loginNetworkError: 'Cannot reach Niwan AI — check your network or proxy settings',
     loginExpired: 'Sign-in expired — click to retry',
     loginFailed: 'Sign-in failed — click to retry',
     waitingShort: 'Waiting…',
@@ -349,9 +349,9 @@ export const strings = {
     setAiKeyHint: 'Stored only on this device.',
     setAiBaseUrl: 'Base URL',
     setAiBaseUrlHint: 'Leave empty for the official endpoint.',
-    setAiGensparkHint: 'Uses your Genspark sign-in; no API key needed.',
+    setAiGensparkHint: 'Uses your Niwan AI sign-in; no API key needed.',
     setAiByokNote:
-      'Chats use your own key; cloud tools (web search, image generation) still require the Genspark sign-in.',
+      'Chats use your own key; cloud tools (web search, image generation) still require the Niwan AI sign-in.',
     setAiSave: 'Save',
     setAiSaved: 'Saved',
     setAiTest: 'Test connection',
@@ -363,7 +363,7 @@ export const strings = {
       'Output budget for one turn. Reasoning models spend part of it thinking, so an answer can come back empty once the budget runs out; raise this value if that happens.',
     setAiGskTools: 'Cloud AI tools',
     setAiGskToolsDesc:
-      'Web search, AI image generation and media analysis run through Genspark and use credits; when off, image tools are unavailable and search uses free sources.',
+      'Web search, AI image generation and media analysis run through Niwan AI and use credits; when off, image tools are unavailable and search uses free sources.',
     setGithub: 'Open Source',
     starOnGitHub: 'Star on GitHub',
     starPromptTitle: 'Enjoying NiwanOffice?',
@@ -393,7 +393,7 @@ export const strings = {
     onbTitle2: 'This is just the beginning',
     onbBody2:
       'NiwanOffice is still in alpha. Join the group chat on GenTeam to share feedback and help shape what comes next.',
-    onbCredits: 'Active contributors get **1,000+ Genspark credits**',
+    onbCredits: 'Active contributors get **1,000+ Niwan credits**',
     onbJoinGenTeam: 'Join GenTeam',
     onbSkip: 'Skip',
     onbNext: 'Next',
@@ -401,7 +401,7 @@ export const strings = {
     onbStepAria: 'Page {n} of {total}',
     onbTitle3: 'Free for everyone',
     onbBody3: 'No license fees. No ads. No watermarks.',
-    onbNote3: 'AI features may consume Genspark credits.',
+    onbNote3: 'AI features may consume Niwan credits.',
     onbBack: 'Back',
   },
   ja: {

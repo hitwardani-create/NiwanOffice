@@ -14,11 +14,15 @@ import {
 import type { AiProviderId } from '../src/types'
 
 describe('defaultAiSettings', () => {
-  it('gives every provider its default model and an empty key by default', () => {
+  it('gives every provider its default model and an empty key by default (ollama key preset)', () => {
     const settings = defaultAiSettings()
-    expect(settings.provider).toBe('genspark')
+    expect(settings.provider).toBe('ollama')
     for (const meta of AI_PROVIDERS) {
-      expect(settings.providers[meta.id].apiKey).toBe('')
+      if (meta.id === 'ollama') {
+        expect(settings.providers.ollama.apiKey).toBe('ollama')
+      } else {
+        expect(settings.providers[meta.id].apiKey).toBe('')
+      }
       expect(settings.providers[meta.id].model).toBe(meta.defaultModel)
     }
     expect(settings.providers.custom.baseUrl).toBe('')
@@ -121,6 +125,16 @@ describe('resolveAiSettings', () => {
       defaultAiSettings(),
     )
     expect(gpt.providers.genspark.model).toBe('gpt-5.6-terra')
+
+    const arbitrary = resolveAiSettings(
+      {
+        providers: {
+          genspark: { apiKey: '', model: 'gemma4:31b-cloud' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(arbitrary.providers.genspark.model).toBe('claude-opus-4-7')
   })
 
   it('leaves a still-supported model id alone', () => {
@@ -205,51 +219,48 @@ describe('clampMaxOutputTokens', () => {
 })
 
 describe('activeProvider', () => {
-  it('honors a configured BYOK provider and falls back to genspark otherwise', () => {
+  it('honors ollama as the primary provider and falls back to ollama otherwise', () => {
     const settings = defaultAiSettings()
-    expect(activeProvider(settings)).toBe('genspark')
+    expect(activeProvider(settings)).toBe('ollama')
 
     settings.provider = 'kimi'
-    expect(activeProvider(settings)).toBe('genspark') // no key yet
+    expect(activeProvider(settings)).toBe('ollama') // cloud providers fall back to ollama
     settings.providers.kimi.apiKey = 'sk-user'
-    expect(activeProvider(settings)).toBe('kimi')
+    expect(activeProvider(settings)).toBe('ollama')
   })
 
-  it('requires a base URL for providers that declare needsBaseUrl', () => {
+  it('allows local custom endpoints with base URL and model, else falls back to ollama', () => {
     const settings = defaultAiSettings()
     settings.provider = 'custom'
     settings.providers.custom.apiKey = 'k'
-    expect(activeProvider(settings)).toBe('genspark')
+    expect(activeProvider(settings)).toBe('ollama')
     settings.providers.custom.baseUrl = 'http://localhost:1234/v1'
-    expect(activeProvider(settings)).toBe('genspark') // custom's default model is empty
-    settings.providers.custom.model = 'my-model'
     expect(activeProvider(settings)).toBe('custom')
   })
 
-  it('falls back to genspark for unknown ids from a hand-edited settings file', () => {
+  it('falls back to ollama for unknown ids from a hand-edited settings file', () => {
     const settings = defaultAiSettings()
     settings.provider = 'nonsense' as AiProviderId
-    expect(activeProvider(settings)).toBe('genspark')
+    expect(activeProvider(settings)).toBe('ollama')
   })
 
-  it('genspark never requires a key (injected from the gsk login at request time)', () => {
+  it('ollama is always valid without requiring api key', () => {
     const settings = defaultAiSettings()
-    settings.provider = 'genspark'
-    expect(activeProvider(settings)).toBe('genspark')
+    settings.provider = 'ollama'
+    expect(activeProvider(settings)).toBe('ollama')
   })
 })
 
 describe('gskToolsEnabled', () => {
-  it('defaults on, survives resolveAiSettings, and only an explicit false turns it off', () => {
-    expect(cloudToolsEnabled(defaultAiSettings())).toBe(true)
-    // pre-toggle settings file (field absent) stays on
+  it('defaults false for local ollama, survives resolveAiSettings', () => {
+    expect(cloudToolsEnabled(defaultAiSettings())).toBe(false)
     const legacy = resolveAiSettings({ providers: {} as never }, defaultAiSettings())
-    expect(cloudToolsEnabled(legacy)).toBe(true)
-    const off = resolveAiSettings(
-      { providers: {} as never, gskToolsEnabled: false },
+    expect(cloudToolsEnabled(legacy)).toBe(false)
+    const on = resolveAiSettings(
+      { providers: {} as never, gskToolsEnabled: true },
       defaultAiSettings(),
     )
-    expect(off.gskToolsEnabled).toBe(false)
-    expect(cloudToolsEnabled(off)).toBe(false)
+    expect(on.gskToolsEnabled).toBe(true)
+    expect(cloudToolsEnabled(on)).toBe(true)
   })
 })

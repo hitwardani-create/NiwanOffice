@@ -10,7 +10,7 @@ import {
 import type { AiSettings } from '@genoffice/ai-provider'
 import { useI18n } from './locale'
 import type { StringKey, TFunc } from './locale'
-import type { AccountStatus, AiCatalogEntry, UiTheme } from '../../shared/home-api'
+import type { AccountStatus, UiTheme } from '../../shared/home-api'
 import { ProviderLogo } from './provider-logos'
 import './settings.css'
 
@@ -151,30 +151,82 @@ function Field({
   )
 }
 
-/** AI model pane: provider / model / key / base URL, saved to userData/ai-settings.json */
+const OLLAMA_PRESETS = [
+  'llama3.2',
+  'qwen2.5-coder',
+  'deepseek-r1',
+  'llama3.1',
+  'qwen2.5',
+  'mistral',
+  'gemma2',
+  'phi4',
+]
+
+/** AI model pane: dedicated Ollama local settings, saved to userData/ai-settings.json */
 function AiModelPane({ t }: { t: TFunc }) {
-  const [catalog] = useState<AiCatalogEntry[]>(() => window.aiOffice.getAiProviders?.() ?? [])
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [localModels, setLocalModels] = useState<string[]>([])
+  const [isOnline, setIsOnline] = useState<boolean | null>(null)
+  const [checkingServer, setCheckingServer] = useState(false)
   /** free-typed value of the output-cap field; committed (and clamped) on blur */
   const [maxTokensDraft, setMaxTokensDraft] = useState<string | null>(null)
+
+  const probeServer = (url: string) => {
+    setCheckingServer(true)
+    window.aiOffice
+      .listLocalModels?.(url)
+      .then((models) => {
+        if (Array.isArray(models) && models.length > 0) {
+          setLocalModels(models)
+          setIsOnline(true)
+        } else {
+          const rawBase = url.replace(/\/v1\/?$/, '').replace(/\/$/, '')
+          return fetch(`${rawBase}/api/tags`)
+            .then((r) => r.json())
+            .then((data: any) => {
+              if (Array.isArray(data?.models) && data.models.length > 0) {
+                const names = data.models.map((m: any) => m.name || m.model).filter(Boolean)
+                setLocalModels(names)
+                setIsOnline(true)
+              } else {
+                setLocalModels([])
+                setIsOnline(true)
+              }
+            })
+            .catch(() => {
+              setIsOnline(false)
+            })
+        }
+      })
+      .catch(() => {
+        setIsOnline(false)
+      })
+      .finally(() => setCheckingServer(false))
+  }
 
   useEffect(() => {
     let alive = true
     void window.aiOffice.getAiSettings?.().then((s) => {
       if (!alive || !s) return
-      // The switch is disabled with genspark, so never present it stranded
-      // off. Display-only: s.provider may be the activeProvider fallback for
-      // a half-configured BYOK selection, so writing anything back here would
-      // clobber the stored choice — the main process heals a genuine legacy
-      // genspark+off file itself, judged on the raw stored provider.
-      if (s.provider === 'genspark' && s.gskToolsEnabled === false) {
-        s = { ...s, gskToolsEnabled: true }
+      const resolved: AiSettings = {
+        ...s,
+        provider: 'ollama',
+        providers: {
+          ...s.providers,
+          ollama: s.providers?.ollama ?? {
+            apiKey: 'ollama',
+            model: 'llama3.2',
+            baseUrl: 'http://localhost:11434/v1',
+          },
+        },
+        gskToolsEnabled: false,
       }
-      setSettings(s)
+      setSettings(resolved)
+      probeServer(resolved.providers.ollama.baseUrl || 'http://localhost:11434/v1')
     })
     return () => {
       alive = false
@@ -182,26 +234,28 @@ function AiModelPane({ t }: { t: TFunc }) {
   }, [])
 
   if (!settings) return null
-  const provider = settings.provider
-  const meta = catalog.find((c) => c.id === provider)
-  const config = settings.providers[provider] ?? {
-    apiKey: '',
-    model: meta?.defaultModel ?? '',
+  const config = settings.providers.ollama ?? {
+    apiKey: 'ollama',
+    model: 'llama3.2',
+    baseUrl: 'http://localhost:11434/v1',
   }
-  const isGenspark = provider === 'genspark'
 
   const touch = () => {
     setDirty(true)
     setSaved(false)
     setTestResult(null)
   }
+
   const updateConfig = (patch: Partial<typeof config>) => {
+    const updated = { ...config, ...patch, apiKey: 'ollama' }
     setSettings({
       ...settings,
-      providers: { ...settings.providers, [provider]: { ...config, ...patch } },
+      provider: 'ollama',
+      providers: { ...settings.providers, ollama: updated },
     })
     touch()
   }
+
   /** Commit the output-cap input: clamp what was typed and drop a no-op edit */
   const commitMaxTokens = () => {
     if (maxTokensDraft === null) return
@@ -211,18 +265,23 @@ function AiModelPane({ t }: { t: TFunc }) {
     setSettings({ ...settings, maxOutputTokens: next })
     touch()
   }
-  const selectProvider = (id: AiSettings['provider']) => {
-    // cloud tools cannot be off with genspark (chat runs through gsk anyway)
-    setSettings({
-      ...settings,
-      provider: id,
-      ...(id === 'genspark' ? { gskToolsEnabled: true } : {}),
-    })
-    touch()
-  }
+
   const save = () => {
+    const cleanSettings: AiSettings = {
+      ...settings,
+      provider: 'ollama',
+      providers: {
+        ...settings.providers,
+        ollama: {
+          apiKey: 'ollama',
+          model: config.model || 'llama3.2',
+          baseUrl: config.baseUrl || 'http://localhost:11434/v1',
+        },
+      },
+      gskToolsEnabled: false,
+    }
     window.aiOffice
-      .setAiSettings?.(settings)
+      .setAiSettings?.(cleanSettings)
       .then(() => {
         setDirty(false)
         setSaved(true)
@@ -231,114 +290,179 @@ function AiModelPane({ t }: { t: TFunc }) {
         window.alert(error instanceof Error ? error.message : String(error))
       })
   }
+
   const test = () => {
     setTesting(true)
     setTestResult(null)
+    const testConfig: AiSettings = {
+      ...settings,
+      provider: 'ollama',
+      providers: {
+        ...settings.providers,
+        ollama: {
+          apiKey: 'ollama',
+          model: config.model || 'llama3.2',
+          baseUrl: config.baseUrl || 'http://localhost:11434/v1',
+        },
+      },
+    }
     window.aiOffice
-      .testAiSettings?.(settings)
+      .testAiSettings?.(testConfig)
       .then((r) => setTestResult(r ?? { ok: false }))
       .catch((error) =>
         setTestResult({ ok: false, error: error instanceof Error ? error.message : String(error) }),
       )
-      .finally(() => setTesting(false))
+      .finally(() => {
+        setTesting(false)
+        probeServer(config.baseUrl || 'http://localhost:11434/v1')
+      })
+  }
+
+  // Build model options list
+  const activeModel = config.model || 'llama3.2'
+  const modelOptions: Array<{ value: string; label: string }> = []
+  const seen = new Set<string>()
+
+  // Add installed models
+  for (const m of localModels) {
+    seen.add(m)
+    modelOptions.push({ value: m, label: `${m} (Installed)` })
+  }
+  // Add preset models not already in localModels
+  for (const p of OLLAMA_PRESETS) {
+    if (!seen.has(p)) {
+      seen.add(p)
+      modelOptions.push({ value: p, label: `${p} (Preset)` })
+    }
+  }
+  // Add active custom model if not in list
+  if (!seen.has(activeModel)) {
+    modelOptions.unshift({ value: activeModel, label: `${activeModel} (Custom)` })
   }
 
   return (
     <>
       <h3 className="set-pane-title">{t('setSecAiModel')}</h3>
+
+      {/* Ollama Status Overview Card */}
+      <div
+        className="set-ollama-card"
+        style={{
+          background: 'var(--surface-subtle, rgba(125, 125, 125, 0.08))',
+          border: '1px solid var(--border, rgba(125, 125, 125, 0.2))',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ProviderLogo id="ollama" />
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+              Ollama Local AI
+            </div>
+            <div
+              style={{
+                fontSize: '11px',
+                color: isOnline ? '#10b981' : '#f59e0b',
+                marginTop: '2px',
+              }}
+            >
+              {checkingServer
+                ? 'Connecting to Ollama…'
+                : isOnline
+                  ? `🟢 Server Online • ${localModels.length} model${localModels.length === 1 ? '' : 's'} detected`
+                  : '🔴 Server Offline • run `ollama serve` in terminal'}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="set-btn"
+          style={{ height: '28px', fontSize: '11px', padding: '0 10px' }}
+          disabled={checkingServer}
+          onClick={() => probeServer(config.baseUrl || 'http://localhost:11434/v1')}
+        >
+          {checkingServer ? 'Checking…' : 'Scan Models'}
+        </button>
+      </div>
+
+      {/* Server Base URL */}
       <div className="set-field">
         <div className="set-field-text">
-          <label className="set-field-label">{t('setAiProvider')}</label>
+          <div className="set-field-stack">
+            <label className="set-field-label" htmlFor="set-ai-base-url">
+              {t('setAiBaseUrl')}
+            </label>
+            <div className="set-field-desc">Default endpoint: http://localhost:11434/v1</div>
+          </div>
+        </div>
+        <input
+          id="set-ai-base-url"
+          className="set-input"
+          type="text"
+          value={config.baseUrl || 'http://localhost:11434/v1'}
+          placeholder="http://localhost:11434/v1"
+          spellCheck={false}
+          onChange={(e) => updateConfig({ baseUrl: e.target.value.trim() })}
+        />
+      </div>
+
+      {/* Active Model */}
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <label className="set-field-label">{t('setAiModelId')}</label>
+            <div className="set-field-desc">
+              Choose an installed or recommended model, or enter a custom tag.
+            </div>
+          </div>
         </div>
         <Dropdown
           className="set-dd"
-          value={provider}
-          ariaLabel={t('setAiProvider')}
-          options={catalog.map((c) => ({
-            value: c.id,
-            label: c.label,
-            render: (
-              <>
-                <ProviderLogo id={c.id} />
-                {c.label}
-              </>
-            ),
-          }))}
-          onPick={(v) => selectProvider(v as AiSettings['provider'])}
+          value={activeModel}
+          ariaLabel={t('setAiModelId')}
+          options={modelOptions}
+          onPick={(m) => updateConfig({ model: m })}
         />
       </div>
-      <div className="set-field-desc set-ai-note">
-        {isGenspark ? t('setAiGensparkHint') : t('setAiByokNote')}
-      </div>
+
+      {/* Custom Model Direct Input */}
       <div className="set-field">
         <div className="set-field-text">
-          <label className="set-field-label">{t('setAiModelId')}</label>
+          <div className="set-field-stack">
+            <label className="set-field-label" htmlFor="set-ai-custom-model">
+              Custom Model Tag
+            </label>
+            <div className="set-field-desc">e.g. llama3.2:1b, codellama, mistral-nemo</div>
+          </div>
         </div>
-        {meta && meta.models.length > 0 ? (
-          <Dropdown
-            className="set-dd"
-            value={config.model || meta.defaultModel}
-            ariaLabel={t('setAiModelId')}
-            options={meta.models.map((m) => ({ value: m, label: m }))}
-            onPick={(m) => updateConfig({ model: m })}
-          />
-        ) : (
-          <input
-            id="set-ai-model"
-            className="set-input"
-            type="text"
-            value={config.model}
-            placeholder="model-id"
-            spellCheck={false}
-            onChange={(e) => updateConfig({ model: e.target.value })}
-          />
-        )}
+        <input
+          id="set-ai-custom-model"
+          className="set-input"
+          type="text"
+          value={config.model}
+          placeholder="llama3.2"
+          spellCheck={false}
+          onChange={(e) => updateConfig({ model: e.target.value.trim() })}
+        />
       </div>
-      {!isGenspark && (
-        <>
-          <div className="set-field">
-            <div className="set-field-text">
-              <div className="set-field-stack">
-                <label className="set-field-label" htmlFor="set-ai-key">
-                  {t('setAiApiKey')}
-                </label>
-                <div className="set-field-desc">{t('setAiKeyHint')}</div>
-              </div>
-            </div>
-            <input
-              id="set-ai-key"
-              className="set-input"
-              type="password"
-              value={config.apiKey}
-              placeholder={meta?.keyPlaceholder ?? 'API Key'}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(e) => updateConfig({ apiKey: e.target.value.trim() })}
-            />
-          </div>
-          <div className="set-field">
-            <div className="set-field-text">
-              <div className="set-field-stack">
-                <label className="set-field-label" htmlFor="set-ai-base-url">
-                  {t('setAiBaseUrl')}
-                </label>
-                {!meta?.needsBaseUrl && (
-                  <div className="set-field-desc">{t('setAiBaseUrlHint')}</div>
-                )}
-              </div>
-            </div>
-            <input
-              id="set-ai-base-url"
-              className="set-input"
-              type="text"
-              value={config.baseUrl ?? ''}
-              placeholder={meta?.needsBaseUrl ? 'https://…/v1' : meta?.defaultBaseUrl}
-              spellCheck={false}
-              onChange={(e) => updateConfig({ baseUrl: e.target.value.trim() })}
-            />
-          </div>
-        </>
-      )}
+
+      {/* Max Output Tokens */}
       <div className="set-field">
         <div className="set-field-text">
           <div className="set-field-stack">
@@ -360,26 +484,7 @@ function AiModelPane({ t }: { t: TFunc }) {
           onBlur={commitMaxTokens}
         />
       </div>
-      <div className="set-field">
-        <div className="set-field-text">
-          <div className="set-field-stack">
-            <div className="set-field-label">{t('setAiGskTools')}</div>
-            <div className="set-field-desc">{t('setAiGskToolsDesc')}</div>
-          </div>
-        </div>
-        {/* locked on with the genspark provider — chat runs through gsk anyway */}
-        <button
-          className="set-switch"
-          role="switch"
-          aria-checked={settings.gskToolsEnabled !== false}
-          aria-label={t('setAiGskTools')}
-          disabled={isGenspark}
-          onClick={() => {
-            setSettings({ ...settings, gskToolsEnabled: settings.gskToolsEnabled === false })
-            touch()
-          }}
-        />
-      </div>
+
       <div className="set-pane-footer">
         <AiStatusPill
           status={

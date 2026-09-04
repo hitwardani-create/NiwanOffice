@@ -22,12 +22,12 @@ import {
   isAiNetworkError,
   isAiOverloadedError,
   defaultAiSettings,
-  activeProvider,
   cloudToolsEnabled,
   maxOutputTokensOf,
   resolveAiSettings,
   setRescueFetch,
   streamForProvider,
+  type AiProviderId,
   type AiSettings,
   type AiStreamChunk,
   type AiStreamRequest,
@@ -39,7 +39,6 @@ import {
   webSearch,
   imageSearch,
   ensureGenofficeLogin,
-  gskApiKey,
   gskGenerateImage,
   gskAnalyzeMedia,
   gskLoginInfo,
@@ -112,8 +111,19 @@ export function registerAiIpc(): void {
   ipcMain.handle('ai:get-settings', (): AiSettings => {
     const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(AI_SETTINGS_PATH(), {})
     const settings = resolveAiSettings(stored, defaultAiSettings())
-    // a stored BYOK provider is honored when usable; half-filled configs fall back to genspark
-    settings.provider = activeProvider(settings)
+    settings.provider = 'ollama'
+    if (!settings.providers.ollama) {
+      settings.providers.ollama = {
+        apiKey: 'ollama',
+        model: 'llama3.2',
+        baseUrl: 'http://localhost:11434/v1',
+      }
+    } else {
+      settings.providers.ollama.apiKey = settings.providers.ollama.apiKey || 'ollama'
+      settings.providers.ollama.baseUrl =
+        settings.providers.ollama.baseUrl || 'http://localhost:11434/v1'
+      settings.providers.ollama.model = settings.providers.ollama.model || 'llama3.2'
+    }
     return settings
   })
 
@@ -191,26 +201,15 @@ export function registerAiIpc(): void {
     const { requestId, settings, system, messages } = request
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
-    const provider = settings.provider
-    let config = settings.providers?.[provider]
-    // The genspark key never enters the settings file; it is fetched from the gsk login state per request
-    if (provider === 'genspark' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
+    const provider: AiProviderId = 'ollama'
+    const storedConfig = settings.providers?.ollama ?? settings.providers?.[settings.provider]
+    const config = {
+      apiKey: storedConfig?.apiKey || 'ollama',
+      model: storedConfig?.model || 'llama3.2',
+      baseUrl: storedConfig?.baseUrl || 'http://localhost:11434/v1',
     }
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send('ai:stream-chunk', chunk)
-    }
-    if (!config?.apiKey) {
-      send({
-        requestId,
-        type: 'error',
-        error: provider === 'genspark' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
-      })
-      return
-    }
-    if (!config.model) {
-      send({ requestId, type: 'error', error: tm('errNoModel') })
-      return
     }
     const controller = new AbortController()
     activeAiStreams.set(requestId, controller)
@@ -243,12 +242,20 @@ export function registerAiIpc(): void {
       if (controller.signal.aborted) {
         send({ requestId, type: 'done' })
       } else {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[ai-stream] ${requestId} (${provider}/${config.model}) failed:`, msg)
+        const rawMsg = err instanceof Error ? err.message : String(err)
+        let friendly = rawMsg
+        if (
+          rawMsg.includes('fetch failed') ||
+          rawMsg.includes('ECONNREFUSED') ||
+          rawMsg.includes('Failed to fetch')
+        ) {
+          friendly = `Cannot connect to Ollama at ${config.baseUrl}. Please run 'ollama serve' in your terminal.`
+        }
+        console.error(`[ai-stream] ${requestId} (${provider}/${config.model}) failed:`, rawMsg)
         send({
           requestId,
           type: 'error',
-          error: msg,
+          error: friendly,
           ...(err instanceof AiTimeoutError
             ? { errorCode: 'timeout' as const }
             : err instanceof AiCreditsError

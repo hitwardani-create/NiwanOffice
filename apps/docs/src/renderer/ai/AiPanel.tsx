@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { Block } from '@genoffice/docx-engine'
 import { AgentLoop, composeSkills, type AgentImage } from '@genoffice/agent-core'
-import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
+import type {
+  AiProviderId,
+  AiSettings,
+  AttachmentAddResult,
+  AttachmentMeta,
+} from '../../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
 import type { PmNode } from '../editor/convert'
 import { countWords, findNumId, type NumIds } from './protocol'
@@ -23,7 +28,7 @@ import { createFilesSkill } from './files-skill'
 import { createElectronTransport } from './transport'
 import { useI18n, t as tModule, aiLangDirective, type StringKey } from '../i18n/locale'
 import { Markdown, AiComposer, AiTypingIndicator, ModelSelector } from '@genoffice/ui'
-import { GensparkMark } from '../components/icons'
+import { NiwanMark } from '../components/icons'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'
 import sendStop from '../assets/send-stop.png'
@@ -423,12 +428,13 @@ export function AiPanel({
   const settingsRef = useRef(settings)
   settingsRef.current = panelSettings || settings
 
-  const handleModelChange = (newModel: string) => {
+  const handleModelChange = (newModel: string, newProvider?: AiProviderId) => {
     const base = panelSettings || settings
     if (!base) return
-    const provider = base.provider || 'ollama'
+    const provider = newProvider || base.provider || 'ollama'
     const updated: AiSettings = {
       ...base,
+      provider,
       providers: {
         ...base.providers,
         [provider]: {
@@ -714,22 +720,6 @@ export function AiPanel({
             }
             return next
           })
-          // Signed-out failures get an inline sign-in button; detected via
-          // gsk status rather than matching the localized error text
-          void window.desktop
-            .aiGskStatus()
-            .then((status) => {
-              if (status.loggedIn) return
-              setChat((prev) => {
-                const next = [...prev]
-                const last = next.at(-1)
-                if (last?.role === 'assistant' && last.error) {
-                  next[next.length - 1] = { ...last, loginRequired: true }
-                }
-                return next
-              })
-            })
-            .catch(() => {})
           setBusy(false)
         },
       },
@@ -1019,7 +1009,7 @@ export function AiPanel({
         aria-label={t('appExpandAiPanel')}
         onClick={onExpand}
       >
-        <GensparkMark size={22} />
+        <NiwanMark size={22} />
       </button>
     )
   }
@@ -1051,7 +1041,7 @@ export function AiPanel({
       />
       <div className="ai-panel-header">
         <span className="ai-panel-title">
-          <GensparkMark size={22} />
+          <NiwanMark size={22} />
           {t('aiPanelTitle')}
         </span>
         <div className="ai-panel-header-actions">
@@ -1169,12 +1159,29 @@ export function AiPanel({
               )}
               {entry.tools && entry.tools.length > 0 && <ToolChipList tools={entry.tools} />}
               {entry.error && (
-                <div className="ai-msg-error">{t('aiErrorPrefix', { error: entry.error })}</div>
-              )}
-              {entry.loginRequired && (
-                <button className="ai-login-btn" onClick={() => void window.desktop.aiGskLogin()}>
-                  {t('aiGskLoginBtn')}
-                </button>
+                <div className="ai-msg-error">
+                  <div>{t('aiErrorPrefix', { error: entry.error })}</div>
+                  <button
+                    type="button"
+                    className="ai-retry-btn"
+                    style={{
+                      marginTop: '6px',
+                      padding: '3px 10px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-strong, #555)',
+                      background: 'var(--surface, #1e1e1e)',
+                      color: 'var(--text, #e4e4e4)',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      const lastUser = [...chat].reverse().find((m) => m.role === 'user')
+                      if (lastUser?.text) runWith(lastUser.text)
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
               )}
               {showToolbar && (
                 <div className="ai-msg-toolbar">

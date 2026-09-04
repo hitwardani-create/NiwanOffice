@@ -62,6 +62,11 @@
   --color-border-brand: #0f7fff;
   --color-error: #ef4444;
   --color-error-hover: #dc2626;
+  --color-bg-elevated: #ffffff;
+  --color-bg-muted: #f3f4f6;
+  --color-bg-hover: #f5f5f5;
+  --color-border-hover: #d3d7dd;
+  --color-brand: #0f7fff;
 
   /* non-color */
   --radius-6: 6px;
@@ -127,6 +132,11 @@
   --color-border-default: #3a3a3a;
   --color-border-strong: #555;
   --color-border-brand: #4a9eff;
+  --color-bg-elevated: #252525;
+  --color-bg-muted: #333333;
+  --color-bg-hover: #333333;
+  --color-border-hover: #555555;
+  --color-brand: #4a9eff;
 
   color-scheme: dark;
 }
@@ -182,6 +192,11 @@
     --color-border-default: #3a3a3a;
     --color-border-strong: #555;
     --color-border-brand: #4a9eff;
+    --color-bg-elevated: #252525;
+    --color-bg-muted: #333333;
+    --color-bg-hover: #333333;
+    --color-border-hover: #555555;
+    --color-brand: #4a9eff;
 
     color-scheme: dark;
   }

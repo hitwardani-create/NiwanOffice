@@ -55,13 +55,13 @@ import {
   isAiOverloadedError,
   chatForProvider,
   defaultAiSettings,
-  activeProvider,
   cloudToolsEnabled,
   resolveAiSettings,
   maxOutputTokensOf,
   setRescueFetch,
   streamForProvider,
   type AiChatRequest,
+  type AiProviderId,
   type AiSettings,
   type AiStreamChunk,
   type AiStreamRequest,
@@ -70,7 +70,6 @@ import {
 } from '@genoffice/ai-provider'
 import {
   ensureGenofficeLogin,
-  gskApiKey,
   gskGenerateImage,
   gskLoginInfo,
   hasGskAuth,
@@ -252,7 +251,7 @@ const tMain = createI18n({
     errImageNoText: 'Image attachments have no text; the image is sent along with the user message',
     errNotImage: 'not a supported image type',
     errGskNotLoggedIn:
-      'Not signed in to Genspark: click “Sign in to Genspark” below, sign in, then retry',
+      'Not signed in to Niwan AI: click “Sign in to AI” below, sign in, then retry',
     errNoApiKey: 'No API key configured for {provider}',
     errAiBusy: 'The AI service is busy right now — please try again in a moment',
     errNoModel: 'No model name configured',
@@ -2625,22 +2624,24 @@ const activeAiStreams = new Map<string, AbortController>()
 export function registerAiIpc(): void {
   ipcMain.handle('ai:get-settings', (): AiSettings => {
     const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
-    // pre-lock legacy file: genspark selected with cloud tools opted out. The
-    // settings UI locks the tools switch on with genspark and apps read this
-    // file live, so heal the stored flag once. Judged on the *stored* provider
-    // — never the activeProvider fallback below, which must not leak into the
-    // file and clobber a saved (half-configured) BYOK selection.
-    if ((stored.provider ?? 'genspark') === 'genspark' && stored.gskToolsEnabled === false) {
-      stored.gskToolsEnabled = true
-      writeJson(SETTINGS_PATH(), stored)
-    }
     const settings = resolveAiSettings(stored, defaultAiSettings())
-    // a stored BYOK provider is honored when usable; half-filled configs fall back to genspark
-    settings.provider = activeProvider(settings)
+    settings.provider = 'ollama'
+    if (!settings.providers.ollama) {
+      settings.providers.ollama = {
+        apiKey: 'ollama',
+        model: 'llama3.2',
+        baseUrl: 'http://localhost:11434/v1',
+      }
+    } else {
+      settings.providers.ollama.apiKey = settings.providers.ollama.apiKey || 'ollama'
+      settings.providers.ollama.baseUrl =
+        settings.providers.ollama.baseUrl || 'http://localhost:11434/v1'
+      settings.providers.ollama.model = settings.providers.ollama.model || 'llama3.2'
+    }
     return settings
   })
 
-  // Genspark account (gsk login state): auth source for AI features; the frontend uses it to prompt login when logged out
+  // Genspark account (gsk login state): kept for backwards compatibility but not required for AI
   ipcMain.handle(
     'ai:gsk-status',
     async (_event, withEmail?: boolean): Promise<GenSparkAccountStatus> => {
@@ -2710,26 +2711,15 @@ export function registerAiIpc(): void {
     const { requestId, settings, system, messages } = request
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
-    const provider = settings.provider
-    let config = settings.providers?.[provider]
-    // the genspark key never enters the settings file; requests take it from the gsk login state
-    if (provider === 'genspark' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
+    const provider: AiProviderId = 'ollama'
+    const storedConfig = settings.providers?.ollama ?? settings.providers?.[settings.provider]
+    const config = {
+      apiKey: storedConfig?.apiKey || 'ollama',
+      model: storedConfig?.model || 'llama3.2',
+      baseUrl: storedConfig?.baseUrl || 'http://localhost:11434/v1',
     }
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send('ai:stream-chunk', chunk)
-    }
-    if (!config?.apiKey) {
-      send({
-        requestId,
-        type: 'error',
-        error: provider === 'genspark' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
-      })
-      return
-    }
-    if (!config.model) {
-      send({ requestId, type: 'error', error: tm('errNoModel') })
-      return
     }
     const controller = new AbortController()
     activeAiStreams.set(requestId, controller)
@@ -2758,10 +2748,19 @@ export function registerAiIpc(): void {
       if (controller.signal.aborted) {
         send({ requestId, type: 'done' })
       } else {
+        const rawMsg = err instanceof Error ? err.message : String(err)
+        let friendly = rawMsg
+        if (
+          rawMsg.includes('fetch failed') ||
+          rawMsg.includes('ECONNREFUSED') ||
+          rawMsg.includes('Failed to fetch')
+        ) {
+          friendly = `Cannot connect to Ollama at ${config.baseUrl}. Please run 'ollama serve' in your terminal.`
+        }
         send({
           requestId,
           type: 'error',
-          error: err instanceof Error ? err.message : String(err),
+          error: friendly,
           ...(err instanceof AiTimeoutError
             ? { errorCode: 'timeout' as const }
             : err instanceof AiCreditsError
@@ -2838,12 +2837,11 @@ export function registerAiIpc(): void {
     async (_event, op: { prompt?: unknown; aspectRatio?: unknown }) => {
       if (!hasGskAuth())
         return {
-          error: 'Genspark account is not logged in on this machine; ask the user to log in first',
+          error: 'Cloud account is not logged in on this machine',
         }
       if (!gskCloudToolsOn())
         return {
-          error:
-            'Genspark cloud tools are turned off in Settings (AI Model); enable them to use this tool',
+          error: 'Cloud tools are turned off in Settings (AI Model); enable them to use this tool',
         }
       const prompt = String(op?.prompt ?? '').trim()
       if (!prompt) return { error: 'prompt must not be empty' }
@@ -2861,28 +2859,40 @@ export function registerAiIpc(): void {
 
   ipcMain.handle('ai:chat', async (_event, request: AiChatRequest) => {
     const { settings, system, user } = request
-    const provider = settings.provider
-    let config = settings.providers?.[provider]
-    if (provider === 'genspark' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
+    const provider: AiProviderId = 'ollama'
+    const storedConfig = settings.providers?.ollama ?? settings.providers?.[settings.provider]
+    const config = {
+      apiKey: storedConfig?.apiKey || 'ollama',
+      model: storedConfig?.model || 'llama3.2',
+      baseUrl: storedConfig?.baseUrl || 'http://localhost:11434/v1',
     }
-    if (!config?.apiKey) {
-      return {
-        ok: false,
-        error: provider === 'genspark' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
-      }
-    }
-    if (!config.model) return { ok: false, error: tm('errNoModel') }
     try {
       const result = await chatForProvider(provider, config, system, user)
-      // the one-shot path reports HTTP failures as ok:false with the raw body —
-      // replace capacity/rate-limit dumps with the localized "busy" message
-      if (!result.ok && isAiOverloadedError(result.error)) {
-        return { ok: false, error: tm('errAiBusy') }
+      if (
+        !result.ok &&
+        (result.error?.includes('fetch failed') ||
+          result.error?.includes('ECONNREFUSED') ||
+          result.error?.includes('Failed to fetch'))
+      ) {
+        return {
+          ok: false,
+          error: `Cannot connect to Ollama at ${config.baseUrl}. Please start Ollama with 'ollama serve'.`,
+        }
       }
       return result
     } catch (err) {
-      return { ok: false, error: isAiOverloadedError(err) ? tm('errAiBusy') : String(err) }
+      const msg = err instanceof Error ? err.message : String(err)
+      if (
+        msg.includes('fetch failed') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('Failed to fetch')
+      ) {
+        return {
+          ok: false,
+          error: `Cannot connect to Ollama at ${config.baseUrl}. Please run 'ollama serve'.`,
+        }
+      }
+      return { ok: false, error: msg }
     }
   })
 }
