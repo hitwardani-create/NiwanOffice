@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { AiComposer, AiTypingIndicator } from '@genoffice/ui'
+import { AiComposer, AiTypingIndicator, ModelSelector } from '@genoffice/ui'
+import '@genoffice/ui/model-selector.css'
+import type { AiSettings } from '@genoffice/ai-provider'
 import { GensparkMark } from '../ribbon-icons'
 import type { ChangePlan } from '../../domain/workbook.types'
 import { ATTACHMENT_IMAGE_EXTS, type AttachmentMeta } from '../../shared/desktop-api'
@@ -286,6 +288,29 @@ export function AiChatPanel({
   const [dragOver, setDragOver] = useState(false)
   const asideRef = useRef<HTMLElement | null>(null)
   const [resizing, setResizing] = useState(false)
+  const [panelSettings, setPanelSettings] = useState<AiSettings | null>(null)
+
+  useEffect(() => {
+    void (window as any).desktopApi?.getAiSettings?.().then(setPanelSettings)
+  }, [])
+
+  const handleModelChange = (newModel: string) => {
+    if (!panelSettings) return
+    const provider = panelSettings.provider || 'ollama'
+    const updated: AiSettings = {
+      ...panelSettings,
+      providers: {
+        ...panelSettings.providers,
+        [provider]: {
+          ...(panelSettings.providers?.[provider] ?? { apiKey: '', baseUrl: '' }),
+          model: newModel,
+        },
+      },
+    }
+    setPanelSettings(updated)
+    void (window as any).desktopApi?.setAiSettings?.(updated)
+  }
+
   /** data-URL previews for image attachments, keyed by path (Genspark composer thumbnails) */
   const [attachmentPreviews, setAttachmentPreviews] = useState<Record<string, string>>({})
   /** image paths with a read already issued — one readAttachmentImage per attach, even while pending */
@@ -509,9 +534,10 @@ export function AiChatPanel({
       <header className="ai-panel-header">
         <span className="ai-panel-title">
           <GensparkMark size={22} />
-          Genspark
+          AI Assistant
         </span>
         <div className="ai-panel-header-actions">
+          <ModelSelector settings={panelSettings} onModelChange={handleModelChange} />
           {(chat.length > 0 || historicChat.length > 0) && (
             <button
               className="ai-header-btn"

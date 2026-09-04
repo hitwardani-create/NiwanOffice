@@ -161,6 +161,8 @@ export interface HomeApi {
   getAiProviders(): AiCatalogEntry[]
   /** one-shot round trip against the given (possibly unsaved) settings — the settings-UI connection test */
   testAiSettings(settings: AiSettings): Promise<AiChatResponse>
+  /** query locally installed models from Ollama or OpenAI-compatible server */
+  listLocalModels?(baseUrl?: string): Promise<string[]>
 }
 
 export interface AiCatalogEntry extends AiProviderMeta {

@@ -22,8 +22,8 @@ import { DOCS_CONTINUE_INSTRUCTION } from './continuation'
 import { createFilesSkill } from './files-skill'
 import { createElectronTransport } from './transport'
 import { useI18n, t as tModule, aiLangDirective, type StringKey } from '../i18n/locale'
-import { Markdown } from '@genoffice/ui'
-import { AiComposer, AiTypingIndicator } from '@genoffice/ui'
+import { Markdown, AiComposer, AiTypingIndicator, ModelSelector } from '@genoffice/ui'
+import '@genoffice/ui/model-selector.css'
 import { GensparkMark } from '../components/icons'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'
@@ -417,8 +417,31 @@ export function AiPanel({
   // latest props for the loop's closures (the loop instance outlives renders)
   const editorRef = useRef(editor)
   editorRef.current = editor
+  const [panelSettings, setPanelSettings] = useState(settings)
+  useEffect(() => {
+    setPanelSettings(settings)
+  }, [settings])
   const settingsRef = useRef(settings)
-  settingsRef.current = settings
+  settingsRef.current = panelSettings || settings
+
+  const handleModelChange = (newModel: string) => {
+    const base = panelSettings || settings
+    if (!base) return
+    const provider = base.provider || 'ollama'
+    const updated: AiSettings = {
+      ...base,
+      providers: {
+        ...base.providers,
+        [provider]: {
+          ...(base.providers?.[provider] ?? { apiKey: '', baseUrl: '' }),
+          model: newModel,
+        },
+      },
+    }
+    setPanelSettings(updated)
+    settingsRef.current = updated
+    void (window as any).desktop?.setAiSettings?.(updated)
+  }
   const blocksRef = useRef(blocks)
   blocksRef.current = blocks
   const numIdFallbackRef = useRef(numIdFallback)
@@ -1033,6 +1056,10 @@ export function AiPanel({
           {t('aiPanelTitle')}
         </span>
         <div className="ai-panel-header-actions">
+          <ModelSelector
+            settings={panelSettings || settings}
+            onModelChange={handleModelChange}
+          />
           {chat.length > 0 && (
             <button
               className="ai-header-btn"

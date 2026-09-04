@@ -1,0 +1,239 @@
+name: Release & Multi-Platform Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish as a GitHub Release'
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Mark release as prerelease'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================================
+  # Linux Build (.deb, .AppImage)
+  # =========================================================================
+  build-linux:
+    name: Build Linux (deb & AppImage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/sheets/native/xlsx-engine
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate third-party notices
+        run: npm run notices
+
+      - name: Build all packages & apps
+        run: npm run build:all
+
+      - name: Package Linux (AppImage & deb)
+        run: npm run dist:linux -w @genoffice/shell
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NiwanOffice-Linux-x64
+          path: |
+            apps/shell/release/*.AppImage
+            apps/shell/release/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+  # =========================================================================
+  # Windows Build (.exe NSIS installer)
+  # =========================================================================
+  build-windows:
+    name: Build Windows (NSIS .exe)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CI: false
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/sheets/native/xlsx-engine
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native xlsx-sidecar
+        run: |
+          cargo build --release --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml --config apps/sheets/native/xlsx-engine/.cargo/config.toml
+
+      - name: Generate third-party notices
+        run: npm run notices
+
+      - name: Build all packages & apps
+        run: npm run build:all
+
+      - name: Package Windows (.exe)
+        run: npm run dist:win -w @genoffice/shell
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NiwanOffice-Windows-x64
+          path: |
+            apps/shell/release/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  # =========================================================================
+  # macOS Build (.dmg & .zip)
+  # =========================================================================
+  build-mac:
+    name: Build macOS (.dmg & .zip)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CI: false
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/sheets/native/xlsx-engine
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate third-party notices
+        run: npm run notices
+
+      - name: Build all packages & apps
+        run: npm run build:all
+
+      - name: Build universal xlsx-sidecar
+        run: npm run native:build:universal -w @genoffice/sheets
+
+      - name: Package macOS (.dmg & .zip)
+        run: npm run dist:mac -w @genoffice/shell
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NiwanOffice-macOS
+          path: |
+            apps/shell/release/*.dmg
+            apps/shell/release/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  # =========================================================================
+  # Release Publisher (Downloads all artifacts & publishes GitHub Release)
+  # =========================================================================
+  publish-release:
+    name: Publish GitHub Release & Checksums
+    needs: [build-linux, build-windows, build-mac]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: NiwanOffice-Linux-x64
+          path: release-files
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: NiwanOffice-Windows-x64
+          path: release-files
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: NiwanOffice-macOS
+          path: release-files
+
+      - name: Generate SHA256 Checksums
+        working-directory: release-files
+        run: |
+          ls -la
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or Update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          generate_release_notes: true

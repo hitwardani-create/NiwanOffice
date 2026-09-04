@@ -11,6 +11,7 @@
     "./screentip.css": "./src/screentip.css",
     "./color-picker.css": "./src/color-picker.css",
     "./dropdown.css": "./src/dropdown.css",
+    "./model-selector.css": "./src/model-selector.css",
     "./fonts/*": "./src/fonts/*"
   },
   "scripts": {
@@ -24,6 +25,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@genoffice/ai-provider": "*",
     "@genoffice/i18n": "*",
     "@genoffice/pptx-render": "*"
   }

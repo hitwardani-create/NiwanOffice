@@ -37,7 +37,8 @@ import {
   settingsSupportVision,
 } from './slide-qc'
 import { useI18n, t as tGlobal, aiLangDirective, type TFunc } from '../i18n/locale'
-import { Markdown } from '@genoffice/ui'
+import { Markdown, ModelSelector } from '@genoffice/ui'
+import '@genoffice/ui/model-selector.css'
 import { GensparkMark } from '../components/icons'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'
@@ -514,8 +515,31 @@ export function AiPanel({
   onPathChangeRef.current = onPathChange
   const onDeckProgressRef = useRef(onDeckProgress)
   onDeckProgressRef.current = onDeckProgress
+  const [panelSettings, setPanelSettings] = useState(settings)
+  useEffect(() => {
+    setPanelSettings(settings)
+  }, [settings])
   const settingsRef = useRef(settings)
-  settingsRef.current = settings
+  settingsRef.current = panelSettings || settings
+
+  const handleModelChange = (newModel: string) => {
+    const base = panelSettings || settings
+    if (!base) return
+    const provider = base.provider || 'ollama'
+    const updated: AiSettings = {
+      ...base,
+      providers: {
+        ...base.providers,
+        [provider]: {
+          ...(base.providers?.[provider] ?? { apiKey: '', baseUrl: '' }),
+          model: newModel,
+        },
+      },
+    }
+    setPanelSettings(updated)
+    settingsRef.current = updated
+    void window.slidesApi?.setAiSettings?.(updated)
+  }
 
   /** gsk login state for the cloud-tools gate (refreshed on mount and window focus) */
   const gskLoggedInRef = useRef(false)
@@ -1990,7 +2014,7 @@ export function AiPanel({
         onPointerDown={startResize}
         role="separator"
         aria-orientation="vertical"
-        aria-label="Genspark AI"
+        aria-label="AI Assistant"
       />
       <div className="ai-panel-header">
         <span className="ai-panel-title">
@@ -1998,6 +2022,7 @@ export function AiPanel({
           {t('aiPanelTitle')}
         </span>
         <div className="ai-panel-header-actions">
+          <ModelSelector settings={panelSettings || settings} onModelChange={handleModelChange} />
           {chat.length > 0 && (
             <button
               className="ai-header-btn"

@@ -210,6 +210,18 @@ function assertModuleTreesPresent() {
   }
 }
 
+function resolveWinSidecarRel() {
+  const candidates = [
+    '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe',
+    '../sheets/native/xlsx-engine/target/x86_64-pc-windows-msvc/release/xlsx-sidecar.exe',
+    '../sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe',
+  ]
+  for (const rel of candidates) {
+    if (existsSync(join(__dirname, rel))) return rel
+  }
+  return candidates[0]
+}
+
 /** @type {import('electron-builder').Configuration} */
 const config = {
   appId: 'com.niwanoffice.app',
@@ -387,7 +399,7 @@ const config = {
     gatekeeperAssess: false,
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
-    notarize: true,
+    notarize: Boolean(process.env.APPLE_ID || process.env.APPLE_KEYCHAIN_PROFILE),
     extraResources: [
       {
         from: '../sheets/native/xlsx-engine/target/release/xlsx-sidecar',
@@ -405,7 +417,7 @@ const config = {
     ],
     extraResources: [
       {
-        from: '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe',
+        from: resolveWinSidecarRel(),
         to: 'native/xlsx-sidecar.exe',
       },
     ],
@@ -466,7 +478,7 @@ const config = {
     }
   },
   dmg: {
-    sign: true,
+    sign: Boolean(process.env.APPLE_ID || process.env.CSC_LINK || process.env.APPLE_KEYCHAIN_PROFILE),
   },
   afterAllArtifactBuild: 'build/notarize-dmg.js',
 }

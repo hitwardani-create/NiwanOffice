@@ -1,4 +1,5 @@
 export { AiComposer } from './AiComposer'
+export { ModelSelector, type ModelSelectorProps } from './ModelSelector'
 export {
   ColorPicker,
   THEME_COLORS,
